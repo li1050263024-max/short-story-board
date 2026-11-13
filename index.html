@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>短篇今日曝光</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f5f2;
+      --ink: #1c1b19;
+      --muted: #5e5a54;
+      --line: #e2ddd4;
+      --card: #fff;
+      --accent: #1f4d3a;
+      --pgc: #1f4d3a;
+      --ugc: #8a4b12;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 14px/1.5 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    main { max-width: 1180px; margin: 0 auto; padding: 28px 20px 64px; }
+    h1 { font-size: 22px; font-weight: 650; margin: 0 0 6px; }
+    p.note { margin: 0 0 18px; color: var(--muted); }
+    .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+    label { color: var(--muted); font-size: 13px; }
+    input[type="date"] {
+      border: 1px solid var(--line);
+      background: var(--card);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font: inherit;
+    }
+    button {
+      border: 1px solid var(--line);
+      background: var(--card);
+      border-radius: 999px;
+      padding: 6px 12px;
+      font: inherit;
+      cursor: pointer;
+    }
+    button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .count { color: var(--muted); margin-left: auto; }
+    table { width: 100%; border-collapse: collapse; background: var(--card); }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { font-size: 12px; color: var(--muted); font-weight: 600; position: sticky; top: 0; background: #fbfaf7; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .tag { font-size: 12px; font-weight: 650; }
+    .tag.PGC { color: var(--pgc); }
+    .tag.UGC { color: var(--ugc); }
+    .title { max-width: 360px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>今天每篇帖子的曝光</h1>
+    <p class="note">允许推荐的短篇。曝光、浏览、有效浏览、完读都是 2026-11-12 当天，浏览已去掉作者本人。先选发帖时间，再在这批结果里筛 PGC / UGC，三个比率按钮都是从高到低。</p>
+    <div class="bar">
+      <label>发帖从 <input id="from" type="date" value="2026-11-04" /></label>
+      <label>到 <input id="to" type="date" value="2026-11-12" /></label>
+      <button id="all" class="on" type="button">全部</button>
+      <button id="pgc" type="button">PGC</button>
+      <button id="ugc" type="button">UGC</button>
+      <button id="viewRate" type="button">浏览率倒序</button>
+      <button id="validRate" type="button">有效浏览率倒序</button>
+      <button id="finishRate" type="button">完读率倒序</button>
+      <button id="exposure" class="on" type="button">按今日曝光</button>
+      <span class="count" id="count"></span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>帖子 ID</th>
+          <th>标题</th>
+          <th>来源</th>
+          <th>作者</th>
+          <th>发帖时间</th>
+          <th class="num">今日曝光</th>
+          <th class="num">浏览率</th>
+          <th class="num">有效浏览率</th>
+          <th class="num">完读率</th>
+        </tr>
+      </thead>
+      <tbody id="body"></tbody>
+    </table>
+  </main>
+  <script src="posts.js"></script>
+  <script>
+    var origin = "ALL";
+    var sortKey = "exposure";
+    function esc(s) {
+      return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+    function rate(n, d) { return d ? n / d : -1; }
+    function pct(n, d) { return d ? (n / d * 100).toFixed(2) + "%" : "—"; }
+    function day(s) { return s.slice(0, 10); }
+    function render() {
+      var from = document.getElementById("from").value;
+      var to = document.getElementById("to").value;
+      var rows = window.POSTS.filter(function (r) {
+        var d = day(r.published);
+        if (from && d < from) return false;
+        if (to && d > to) return false;
+        if (origin !== "ALL" && r.origin !== origin) return false;
+        return true;
+      });
+      rows.sort(function (a, b) {
+        var av, bv;
+        if (sortKey === "viewRate") { av = rate(a.views, a.exposure); bv = rate(b.views, b.exposure); }
+        else if (sortKey === "validRate") { av = rate(a.validViews, a.exposure); bv = rate(b.validViews, b.exposure); }
+        else if (sortKey === "finishRate") { av = rate(a.finishes, a.views); bv = rate(b.finishes, b.views); }
+        else if (sortKey === "published") { av = a.published; bv = b.published; return bv < av ? -1 : bv > av ? 1 : a.id - b.id; }
+        else { av = a.exposure; bv = b.exposure; }
+        return bv - av || a.id - b.id;
+      });
+      var exp = 0;
+      rows.forEach(function (r) { exp += r.exposure; });
+      document.getElementById("count").textContent = rows.length + " 篇 · 今日曝光 " + exp.toLocaleString("zh-CN");
+      document.getElementById("body").innerHTML = rows.map(function (r) {
+        return "<tr><td class='num'>" + r.id + "</td><td class='title'>" + esc(r.title) + "</td><td><span class='tag " + r.origin + "'>" + r.origin + "</span></td><td>" + esc(r.author) + "</td><td>" + esc(r.published) + "</td><td class='num'>" + r.exposure.toLocaleString("zh-CN") + "</td><td class='num'>" + pct(r.views, r.exposure) + "</td><td class='num'>" + pct(r.validViews, r.exposure) + "</td><td class='num'>" + pct(r.finishes, r.views) + "</td></tr>";
+      }).join("");
+    }
+    function setOrigin(next) {
+      origin = next;
+      ["all", "pgc", "ugc"].forEach(function (id) {
+        document.getElementById(id).classList.toggle("on", (id === "all" && next === "ALL") || id === next.toLowerCase());
+      });
+      render();
+    }
+    function setSort(next) {
+      sortKey = next;
+      ["viewRate", "validRate", "finishRate", "exposure"].forEach(function (id) {
+        document.getElementById(id).classList.toggle("on", id === next);
+      });
+      render();
+    }
+    document.getElementById("from").onchange = render;
+    document.getElementById("to").onchange = render;
+    document.getElementById("all").onclick = function () { setOrigin("ALL"); };
+    document.getElementById("pgc").onclick = function () { setOrigin("PGC"); };
+    document.getElementById("ugc").onclick = function () { setOrigin("UGC"); };
+    document.getElementById("viewRate").onclick = function () { setSort("viewRate"); };
+    document.getElementById("validRate").onclick = function () { setSort("validRate"); };
+    document.getElementById("finishRate").onclick = function () { setSort("finishRate"); };
+    document.getElementById("exposure").onclick = function () { setSort("exposure"); };
+    render();
+  </script>
+</body>
+</html>
